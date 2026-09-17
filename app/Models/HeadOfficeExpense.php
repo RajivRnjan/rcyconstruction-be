@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class HeadOfficeExpense extends Model
+{
+    protected $fillable = [
+        'date',
+        'project_id',
+        'expenses_head',
+        'supplier_id',
+        'mode_of_payment',
+        'account_id',
+        'amount',
+        'remark',
+    ];
+
+    public function project()
+    {
+        return $this->belongsTo(MasterSheet::class, 'project_id');
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class, 'account_id');
+    }
+}

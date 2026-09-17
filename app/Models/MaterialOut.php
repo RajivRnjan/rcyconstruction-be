@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class MaterialOut extends Model
+{
+    protected $fillable = [
+        'date',
+        'project_id',
+        'expenses_head_id',
+        'supplier_id',
+        'material_id',
+        'qnty',
+        'rate',
+        'amount',
+        'paid',
+        'balance',
+        'remark'
+    ];
+
+    public function project()
+    {
+        return $this->belongsTo(MasterSheet::class, 'project_id');
+    }
+
+    public function expensesHead()
+    {
+        return $this->belongsTo(ExpensesHead::class);
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function material()
+    {
+        return $this->belongsTo(Material::class);
+    }
+}

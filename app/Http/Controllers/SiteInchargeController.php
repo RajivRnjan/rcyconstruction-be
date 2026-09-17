@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SiteIncharge;
+use Illuminate\Http\Request;
+
+class SiteInchargeController extends Controller
+{
+    public function index()
+    {
+        return response()->json(SiteIncharge::with('project')->orderBy('created_at', 'desc')->get());
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'nullable|date',
+            'project_id' => 'required|exists:master_sheets,id',
+            'name' => 'required|string|max:255',
+            'opening_bal' => 'nullable|numeric',
+            'credit' => 'nullable|numeric',
+            'debit_account' => 'nullable|string',
+            'exp' => 'nullable|numeric',
+        ]);
+
+        $opening_bal = $validated['opening_bal'] ?? 0;
+        $credit = $validated['credit'] ?? 0;
+        $exp = $validated['exp'] ?? 0;
+        
+        $balance = $opening_bal + $credit - $exp;
+
+        $siteIncharge = SiteIncharge::create(array_merge($validated, [
+            'opening_bal' => $opening_bal,
+            'credit' => $credit,
+            'exp' => $exp,
+            'balance' => $balance,
+        ]));
+
+        return response()->json($siteIncharge->load('project'), 201);
+    }
+
+    public function show(SiteIncharge $siteIncharge)
+    {
+        return response()->json($siteIncharge->load('project'));
+    }
+
+    public function update(Request $request, SiteIncharge $siteIncharge)
+    {
+        $validated = $request->validate([
+            'date' => 'nullable|date',
+            'project_id' => 'required|exists:master_sheets,id',
+            'name' => 'required|string|max:255',
+            'opening_bal' => 'nullable|numeric',
+            'credit' => 'nullable|numeric',
+            'debit_account' => 'nullable|string',
+            'exp' => 'nullable|numeric',
+        ]);
+
+        $opening_bal = $validated['opening_bal'] ?? 0;
+        $credit = $validated['credit'] ?? 0;
+        $exp = $validated['exp'] ?? 0;
+        
+        $balance = $opening_bal + $credit - $exp;
+
+        $siteIncharge->update(array_merge($validated, [
+            'opening_bal' => $opening_bal,
+            'credit' => $credit,
+            'exp' => $exp,
+            'balance' => $balance,
+        ]));
+
+        return response()->json($siteIncharge->load('project'));
+    }
+
+    public function destroy(SiteIncharge $siteIncharge)
+    {
+        $siteIncharge->delete();
+        return response()->json(null, 204);
+    }
+}
