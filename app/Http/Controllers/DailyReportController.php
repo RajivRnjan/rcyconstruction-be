@@ -22,11 +22,8 @@ class DailyReportController extends Controller
         if ($request->has('site_id') && !empty($request->site_id)) {
             $query->where('daily_reports.site_id', $request->site_id);
         }
-        if ($request->has('site_id') && !empty($request->site_id)) {
-            $query->where('sites.site_id', $request->site_id);
-        }
         
-        $query->select('daily_reports.*', 'sites.name as site_name', 'sites.site_id');
+        $query->select('daily_reports.*', 'sites.name as site_name');
         $query->orderBy('daily_reports.date', 'desc');
         
         return response()->json($query->get());
@@ -100,6 +97,7 @@ class DailyReportController extends Controller
                     if (!empty($exp['type'])) {
                         $report->expenses()->create([
                             'type' => $exp['type'],
+                            'name' => $exp['name'] ?? null,
                             'amount' => !empty($exp['amount']) ? (float)$exp['amount'] : 0,
                         ]);
                     }
@@ -113,7 +111,7 @@ class DailyReportController extends Controller
                     if (!empty($sub['name'])) {
                         $report->subcontractors()->create([
                             'name' => $sub['name'],
-                            'no_of_labour' => !empty($sub['no_of_labour']) ? (int)$sub['no_of_labour'] : 0,
+                            'amount' => !empty($sub['amount']) ? (float)$sub['amount'] : 0,
                             'work_details' => $sub['work_details'] ?? null,
                         ]);
                     }

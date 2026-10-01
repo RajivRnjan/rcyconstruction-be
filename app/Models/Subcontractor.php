@@ -10,7 +10,7 @@ class Subcontractor extends Model
         'date',
         'site_id',
         'name',
-        'no_of_labour',
+        'amount',
         'work_details',
     ];
 

@@ -23,7 +23,7 @@ class SubcontractorController extends Controller
                 'date' => $sub->report->date ?? null,
                 'site' => $sub->report && $sub->report->site ? $sub->report->site : null,
                 'name' => $sub->name,
-                'no_of_labour' => $sub->no_of_labour,
+                'amount' => $sub->amount,
                 'work_details' => $sub->work_details,
                 'source' => 'Daily Report'
             ];
@@ -43,7 +43,7 @@ class SubcontractorController extends Controller
             'date' => 'nullable|date',
             'site_id' => 'required|exists:sites,id',
             'name' => 'required|string|max:255',
-            'no_of_labour' => 'nullable|integer',
+            'amount' => 'nullable|numeric',
             'work_details' => 'nullable|string',
         ]);
 
@@ -69,7 +69,7 @@ class SubcontractorController extends Controller
             'date' => 'nullable|date',
             'site_id' => 'required|exists:sites,id',
             'name' => 'required|string|max:255',
-            'no_of_labour' => 'nullable|integer',
+            'amount' => 'nullable|numeric',
             'work_details' => 'nullable|string',
         ]);
 
