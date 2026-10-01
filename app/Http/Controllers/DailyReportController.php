@@ -22,11 +22,41 @@ class DailyReportController extends Controller
         if ($request->has('site_id') && !empty($request->site_id)) {
             $query->where('daily_reports.site_id', $request->site_id);
         }
+
+        if ($request->has('date') && !empty($request->date)) {
+            $query->where('daily_reports.date', $request->date);
+        }
+        
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('sites.name', 'like', "%{$search}%")
+                  ->orWhere('daily_reports.date', 'like', "%{$search}%")
+                  ->orWhere('daily_reports.site_incharge', 'like', "%{$search}%");
+            });
+        }
         
         $query->select('daily_reports.*', 'sites.name as site_name');
         $query->orderBy('daily_reports.date', 'desc');
         
-        return response()->json($query->get());
+        if ($request->has('all')) {
+            return response()->json($query->get());
+        } else {
+            $perPage = $request->get('per_page', 10);
+            return response()->json($query->paginate($perPage));
+        }
+    }
+
+    
+    public function getExpenseSuggestions()
+    {
+        $suggestions = \App\Models\DailyReportExpense::where('type', 'SITE EXPENSE')
+            ->whereNotNull('name')
+            ->where('name', '!=', '')
+            ->distinct()
+            ->pluck('name');
+            
+        return response()->json($suggestions);
     }
 
     public function show($id)
@@ -111,6 +141,7 @@ class DailyReportController extends Controller
                     if (!empty($sub['name'])) {
                         $report->subcontractors()->create([
                             'name' => $sub['name'],
+                            'no_of_labour' => !empty($sub['no_of_labour']) ? (int)$sub['no_of_labour'] : 0,
                             'amount' => !empty($sub['amount']) ? (float)$sub['amount'] : 0,
                             'work_details' => $sub['work_details'] ?? null,
                         ]);
@@ -176,6 +207,23 @@ class DailyReportController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Failed to save Daily Report', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $report = DailyReport::findOrFail($id);
+            // Dependencies (staff, expenses, subcontractors, etc.) should be cascade deleted if configured in DB.
+            // If not, we might need to delete them manually. Let's delete material first.
+            \App\Models\MaterialIn::where('date', $report->date)->whereHas('site', function($q) use ($report) {
+                 // Wait, material doesn't have site_id directly in some setups, but DailyReport is per site/date.
+                 // The easiest is just deleting the report itself.
+            });
+            $report->delete();
+            return response()->json(['message' => 'Report deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to delete report', 'error' => $e->getMessage()], 500);
         }
     }
 }

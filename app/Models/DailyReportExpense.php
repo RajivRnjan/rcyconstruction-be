@@ -9,5 +9,5 @@ class DailyReportExpense extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['daily_report_id', 'type', 'amount'];
+    protected $fillable = ['daily_report_id', 'type', 'name', 'amount'];
 }

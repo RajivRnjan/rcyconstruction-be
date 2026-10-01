@@ -40,7 +40,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/accounts/{id}', [\App\Http\Controllers\AccountController::class, 'update']);
     Route::delete('/accounts/{id}', [\App\Http\Controllers\AccountController::class, 'destroy']);
 
+    Route::get('staff-attendance', [StaffSalaryController::class, 'getAttendance']);
     Route::apiResource('staff-salaries', StaffSalaryController::class);
+    Route::get('supplier-payments', [\App\Http\Controllers\SupplierController::class, 'payments']);
     Route::apiResource('suppliers', SupplierController::class);
     Route::get('suppliers/{supplier}/transactions', [SupplierTransactionController::class, 'index']);
     Route::post('suppliers/{supplier}/transactions', [SupplierTransactionController::class, 'store']);
@@ -52,9 +54,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('site-incharges', \App\Http\Controllers\SiteInchargeController::class);
     Route::apiResource('sites', \App\Http\Controllers\SiteController::class);
     Route::get('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'index']);
+    Route::get('daily-reports/expense-suggestions', [\App\Http\Controllers\DailyReportController::class, 'getExpenseSuggestions']);
     Route::get('daily-reports/{id}', [\App\Http\Controllers\DailyReportController::class, 'show']);
     Route::post('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'store']);
+    Route::delete('daily-reports/{id}', [\App\Http\Controllers\DailyReportController::class, 'destroy']);
     Route::post('sites/{id}/staff', [\App\Http\Controllers\SiteController::class, 'addStaff']);
+    Route::delete('sites/{id}/staff/{staff_id}', [\App\Http\Controllers\SiteController::class, 'removeStaff']);
     Route::get('sites/{id}/daily-reports', [\App\Http\Controllers\DailyReportController::class, 'indexBySite']);
     Route::get('dashboard/stats', [\App\Http\Controllers\DashboardController::class, 'stats']);
 

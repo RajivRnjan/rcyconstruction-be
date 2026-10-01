@@ -7,9 +7,27 @@ use Illuminate\Http\Request;
 
 class MaterialController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Material::orderBy('created_at', 'desc')->get());
+        $query = Material::orderBy('created_at', 'desc');
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('unit', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->has('all')) {
+            $materials = $query->get();
+        } else {
+            $perPage = $request->get('per_page', 10);
+            $materials = $query->paginate($perPage);
+        }
+
+        return response()->json($materials);
     }
 
     public function store(Request $request)

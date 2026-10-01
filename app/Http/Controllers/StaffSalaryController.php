@@ -10,11 +10,35 @@ class StaffSalaryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $salaries = StaffSalary::orderBy('created_at', 'desc')->get();
+        // Auto-sync staff from sites
+        $allSiteStaff = \App\Models\SiteStaff::select('name', 'salary')->distinct('name')->get();
+        foreach ($allSiteStaff as $staff) {
+            if (!empty($staff->name)) {
+                StaffSalary::firstOrCreate(
+                    ['name' => $staff->name],
+                    ['salary' => $staff->salary ?? 0, 'balance' => 0]
+                );
+            }
+        }
+
+        $query = StaffSalary::orderBy('created_at', 'desc');
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where('name', 'like', "%{$search}%")
+                  ->orWhere('salary', 'like', "%{$search}%");
+        }
+
+        if ($request->has('all')) {
+            $salaries = $query->get();
+        } else {
+            $salaries = $query->paginate($request->get('per_page', 10));
+        }
         
-        foreach ($salaries as $salary) {
+        $items = $request->has('all') ? $salaries : $salaries->items();
+        foreach ($items as $salary) {
             // Calculate total working days dynamically from daily reports
             $presentCount = \App\Models\DailyReportStaff::where('name', $salary->name)
                 ->where('status', 'P')
@@ -118,5 +142,18 @@ class StaffSalaryController extends Controller
     {
         $staffSalary->delete();
         return response()->json(['message' => 'Record deleted successfully']);
+    }
+
+    public function getAttendance(Request $request)
+    {
+        $name = $request->query('name');
+        
+        $attendance = \App\Models\DailyReportStaff::where('name', $name)
+            ->where('status', 'P')
+            ->join('daily_reports', 'daily_report_staff.daily_report_id', '=', 'daily_reports.id')
+            ->select('daily_reports.date')
+            ->pluck('date');
+            
+        return response()->json($attendance);
     }
 }

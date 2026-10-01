@@ -7,9 +7,23 @@ use App\Models\Account;
 
 class AccountController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Account::orderBy('created_at', 'desc')->get());
+        $query = Account::orderBy('created_at', 'desc');
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where('account_details', 'like', "%{$search}%");
+        }
+
+        if ($request->has('all')) {
+            $accounts = $query->get();
+        } else {
+            $perPage = $request->get('per_page', 10);
+            $accounts = $query->paginate($perPage);
+        }
+
+        return response()->json($accounts);
     }
 
     public function store(Request $request)

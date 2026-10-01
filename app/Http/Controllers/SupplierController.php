@@ -7,9 +7,48 @@ use Illuminate\Http\Request;
 
 class SupplierController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Supplier::orderBy('created_at', 'desc')->get());
+        $query = Supplier::orderBy('created_at', 'desc');
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('contact_number', 'like', "%{$search}%")
+                  ->orWhere('gst_number', 'like', "%{$search}%")
+                  ->orWhere('address', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->has('all')) {
+            $suppliers = $query->get();
+        } else {
+            $perPage = $request->get('per_page', 10);
+            $suppliers = $query->paginate($perPage);
+        }
+
+        $items = $request->has('all') ? $suppliers : $suppliers->items();
+        foreach($items as $supplier) {
+            $supplier->total_paid = \App\Models\DailyReportExpense::where('name', $supplier->name)
+                ->whereIn('type', ['SUPPLIER PAYMENT', 'PARTY PAYMENT'])
+                ->sum('amount');
+        }
+
+        return response()->json($suppliers);
+    }
+
+    public function payments(Request $request)
+    {
+        $name = $request->query('name');
+        $payments = \App\Models\DailyReportExpense::where('name', $name)
+            ->whereIn('type', ['SUPPLIER PAYMENT', 'PARTY PAYMENT'])
+            ->join('daily_reports', 'daily_report_expenses.daily_report_id', '=', 'daily_reports.id')
+            ->select('daily_reports.date', 'daily_report_expenses.amount')
+            ->orderBy('daily_reports.date', 'desc')
+            ->get();
+            
+        return response()->json($payments);
     }
 
     public function store(Request $request)

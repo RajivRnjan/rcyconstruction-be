@@ -7,9 +7,33 @@ use Illuminate\Http\Request;
 
 class HeadOfficeIncomeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(HeadOfficeIncome::with(['project', 'account'])->orderBy('created_at', 'desc')->get());
+        $query = HeadOfficeIncome::with(['project', 'account'])->orderBy('created_at', 'desc');
+
+        if ($request->has('site_id') && !empty($request->site_id)) {
+            $query->where('site_id', $request->site_id);
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('client_name', 'like', "%{$search}%")
+                  ->orWhere('amount', 'like', "%{$search}%")
+                  ->orWhereHas('account', function($q2) use ($search) {
+                      $q2->where('account_details', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->has('all')) {
+            $incomes = $query->get();
+        } else {
+            $perPage = $request->get('per_page', 10);
+            $incomes = $query->paginate($perPage);
+        }
+
+        return response()->json($incomes);
     }
 
     public function store(Request $request)

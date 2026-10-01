@@ -261,7 +261,25 @@ class SiteController extends Controller
             'salary' => !empty($validated['salary']) ? $validated['salary'] : 0
         ]);
 
+        // Push to global staff salary
+        \App\Models\StaffSalary::firstOrCreate([
+            'name' => $validated['name']
+        ], [
+            'salary' => !empty($validated['salary']) ? $validated['salary'] : 0,
+            'balance' => 0
+        ]);
+
         return response()->json($staff, 201);
     }
 
+    public function removeStaff($id, $staff_id)
+    {
+        try {
+            $site = Site::findOrFail($id);
+            $site->siteStaff()->where('id', $staff_id)->delete();
+            return response()->json(['message' => 'Staff removed from site successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error removing staff', 'error' => $e->getMessage()], 500);
+        }
+    }
 }

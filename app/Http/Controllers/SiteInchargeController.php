@@ -7,9 +7,33 @@ use Illuminate\Http\Request;
 
 class SiteInchargeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(SiteIncharge::with('site')->orderBy('created_at', 'desc')->get());
+        $query = SiteIncharge::with('site')->orderBy('created_at', 'desc');
+
+        if ($request->has('site_id') && !empty($request->site_id)) {
+            $query->where('site_id', $request->site_id);
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('debit_account', 'like', "%{$search}%")
+                  ->orWhereHas('site', function($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($request->has('all')) {
+            $records = $query->get();
+        } else {
+            $perPage = $request->get('per_page', 10);
+            $records = $query->paginate($perPage);
+        }
+
+        return response()->json($records);
     }
 
     public function store(Request $request)

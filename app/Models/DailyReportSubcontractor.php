@@ -9,7 +9,7 @@ class DailyReportSubcontractor extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['daily_report_id', 'name', 'amount', 'work_details'];
+    protected $fillable = ['daily_report_id', 'name', 'no_of_labour', 'amount', 'work_details'];
 
     public function report()
     {
