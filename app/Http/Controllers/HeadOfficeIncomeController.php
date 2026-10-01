@@ -16,7 +16,7 @@ class HeadOfficeIncomeController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'client_name' => 'nullable|string|max:255',
             'mode_of_payment' => 'nullable|string|max:255',
             'account_id' => 'required|exists:accounts,id',
@@ -38,7 +38,7 @@ class HeadOfficeIncomeController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'client_name' => 'nullable|string|max:255',
             'mode_of_payment' => 'nullable|string|max:255',
             'account_id' => 'required|exists:accounts,id',

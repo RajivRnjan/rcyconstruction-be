@@ -12,7 +12,21 @@ class StaffSalaryController extends Controller
      */
     public function index()
     {
-        return response()->json(StaffSalary::orderBy('created_at', 'desc')->get());
+        $salaries = StaffSalary::orderBy('created_at', 'desc')->get();
+        
+        foreach ($salaries as $salary) {
+            // Calculate total working days dynamically from daily reports
+            $presentCount = \App\Models\DailyReportStaff::where('name', $salary->name)
+                ->where('status', 'P')
+                ->count();
+                
+            // Update the property for the API response
+            if ($presentCount > 0 || $salary->total_working_day == 0) {
+                $salary->total_working_day = $presentCount;
+            }
+        }
+        
+        return response()->json($salaries);
     }
 
     /**

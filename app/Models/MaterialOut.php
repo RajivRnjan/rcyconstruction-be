@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class MaterialOut extends Model
 {
-    protected $fillable = [
+    protected $fillable = ['unit', 
         'date',
-        'project_id',
+        'site_id',
         'expenses_head_id',
         'supplier_id',
         'material_id',
@@ -20,9 +20,9 @@ class MaterialOut extends Model
         'remark'
     ];
 
-    public function project()
+    public function site()
     {
-        return $this->belongsTo(MasterSheet::class, 'project_id');
+        return $this->belongsTo(Site::class, 'site_id');
     }
 
     public function expensesHead()

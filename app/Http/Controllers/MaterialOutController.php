@@ -22,7 +22,7 @@ class MaterialOutController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'expenses_head_id' => 'required|exists:expenses_heads,id',
             'supplier_id' => 'required|exists:suppliers,id',
             'material_id' => 'required|exists:materials,id',
@@ -42,7 +42,7 @@ class MaterialOutController extends Controller
 
         $materialOut = MaterialOut::create([
             'date' => $validated['date'] ?? null,
-            'project_id' => $validated['project_id'],
+            'site_id' => $validated['site_id'],
             'expenses_head_id' => $validated['expenses_head_id'],
             'supplier_id' => $validated['supplier_id'],
             'material_id' => $validated['material_id'],
@@ -73,7 +73,7 @@ class MaterialOutController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'expenses_head_id' => 'required|exists:expenses_heads,id',
             'supplier_id' => 'required|exists:suppliers,id',
             'material_id' => 'required|exists:materials,id',
@@ -93,7 +93,7 @@ class MaterialOutController extends Controller
 
         $materialOut->update([
             'date' => $validated['date'] ?? $materialOut->date,
-            'project_id' => $validated['project_id'],
+            'site_id' => $validated['site_id'],
             'expenses_head_id' => $validated['expenses_head_id'],
             'supplier_id' => $validated['supplier_id'],
             'material_id' => $validated['material_id'],

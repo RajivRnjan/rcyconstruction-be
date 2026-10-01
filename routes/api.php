@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\StaffSalaryController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierTransactionController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ExpensesHeadController;
 use App\Http\Controllers\Api\AdminAuthController;
@@ -41,12 +42,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('staff-salaries', StaffSalaryController::class);
     Route::apiResource('suppliers', SupplierController::class);
+    Route::get('suppliers/{supplier}/transactions', [SupplierTransactionController::class, 'index']);
+    Route::post('suppliers/{supplier}/transactions', [SupplierTransactionController::class, 'store']);
     Route::apiResource('materials', MaterialController::class);
     Route::apiResource('expenses-heads', ExpensesHeadController::class);
     Route::apiResource('material-ins', \App\Http\Controllers\MaterialInController::class);
     Route::apiResource('material-outs', \App\Http\Controllers\MaterialOutController::class);
     Route::apiResource('subcontractors', \App\Http\Controllers\SubcontractorController::class);
     Route::apiResource('site-incharges', \App\Http\Controllers\SiteInchargeController::class);
+    Route::apiResource('sites', \App\Http\Controllers\SiteController::class);
+    Route::get('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'index']);
+    Route::get('daily-reports/{id}', [\App\Http\Controllers\DailyReportController::class, 'show']);
+    Route::post('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'store']);
+    Route::post('sites/{id}/staff', [\App\Http\Controllers\SiteController::class, 'addStaff']);
+    Route::get('sites/{id}/daily-reports', [\App\Http\Controllers\DailyReportController::class, 'indexBySite']);
+    Route::get('dashboard/stats', [\App\Http\Controllers\DashboardController::class, 'stats']);
+
     Route::apiResource('head-office-incomes', \App\Http\Controllers\HeadOfficeIncomeController::class);
     Route::apiResource('head-office-expenses', \App\Http\Controllers\HeadOfficeExpenseController::class);
 });

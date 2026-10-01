@@ -8,14 +8,14 @@ class Subcontractor extends Model
 {
     protected $fillable = [
         'date',
-        'project_id',
+        'site_id',
         'name',
         'no_of_labour',
         'work_details',
     ];
 
-    public function project()
+    public function site()
     {
-        return $this->belongsTo(MasterSheet::class, 'project_id');
+        return $this->belongsTo(Site::class, 'site_id');
     }
 }

@@ -8,7 +8,7 @@ class SiteIncharge extends Model
 {
     protected $fillable = [
         'date',
-        'project_id',
+        'site_id',
         'name',
         'opening_bal',
         'credit',
@@ -17,8 +17,8 @@ class SiteIncharge extends Model
         'balance',
     ];
 
-    public function project()
+    public function site()
     {
-        return $this->belongsTo(MasterSheet::class, 'project_id');
+        return $this->belongsTo(Site::class, 'site_id');
     }
 }

@@ -8,7 +8,7 @@ class HeadOfficeIncome extends Model
 {
     protected $fillable = [
         'date',
-        'project_id',
+        'site_id',
         'client_name',
         'mode_of_payment',
         'account_id',
@@ -16,9 +16,9 @@ class HeadOfficeIncome extends Model
         'remarks',
     ];
 
-    public function project()
+    public function site()
     {
-        return $this->belongsTo(MasterSheet::class, 'project_id');
+        return $this->belongsTo(Site::class, 'site_id');
     }
 
     public function account()

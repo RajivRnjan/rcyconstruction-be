@@ -12,7 +12,26 @@ class SubcontractorController extends Controller
      */
     public function index()
     {
-        return response()->json(Subcontractor::with('project')->orderBy('created_at', 'desc')->get());
+        $standalone = Subcontractor::with('site')->get()->map(function ($sub) {
+            $sub->source = 'Standalone';
+            return $sub;
+        });
+
+        $daily = \App\Models\DailyReportSubcontractor::with('report.site')->get()->map(function ($sub) {
+            return [
+                'id' => 'dr_' . $sub->id,
+                'date' => $sub->report->date ?? null,
+                'site' => $sub->report && $sub->report->site ? $sub->report->site : null,
+                'name' => $sub->name,
+                'no_of_labour' => $sub->no_of_labour,
+                'work_details' => $sub->work_details,
+                'source' => 'Daily Report'
+            ];
+        });
+
+        $merged = collect($standalone)->merge($daily)->sortByDesc('date')->values();
+        
+        return response()->json($merged);
     }
 
     /**
@@ -22,7 +41,7 @@ class SubcontractorController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'name' => 'required|string|max:255',
             'no_of_labour' => 'nullable|integer',
             'work_details' => 'nullable|string',
@@ -30,7 +49,7 @@ class SubcontractorController extends Controller
 
         $subcontractor = Subcontractor::create($validated);
 
-        return response()->json($subcontractor->load('project'), 201);
+        return response()->json($subcontractor->load('site'), 201);
     }
 
     /**
@@ -38,7 +57,7 @@ class SubcontractorController extends Controller
      */
     public function show(Subcontractor $subcontractor)
     {
-        return response()->json($subcontractor->load('project'));
+        return response()->json($subcontractor->load('site'));
     }
 
     /**
@@ -48,7 +67,7 @@ class SubcontractorController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'name' => 'required|string|max:255',
             'no_of_labour' => 'nullable|integer',
             'work_details' => 'nullable|string',
@@ -56,7 +75,7 @@ class SubcontractorController extends Controller
 
         $subcontractor->update($validated);
 
-        return response()->json($subcontractor->load('project'));
+        return response()->json($subcontractor->load('site'));
     }
 
     /**

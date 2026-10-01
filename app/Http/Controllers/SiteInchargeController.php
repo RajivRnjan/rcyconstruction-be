@@ -9,14 +9,14 @@ class SiteInchargeController extends Controller
 {
     public function index()
     {
-        return response()->json(SiteIncharge::with('project')->orderBy('created_at', 'desc')->get());
+        return response()->json(SiteIncharge::with('site')->orderBy('created_at', 'desc')->get());
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'nullable|exists:sites,id',
             'name' => 'required|string|max:255',
             'opening_bal' => 'nullable|numeric',
             'credit' => 'nullable|numeric',
@@ -37,19 +37,19 @@ class SiteInchargeController extends Controller
             'balance' => $balance,
         ]));
 
-        return response()->json($siteIncharge->load('project'), 201);
+        return response()->json($siteIncharge->load('site'), 201);
     }
 
     public function show(SiteIncharge $siteIncharge)
     {
-        return response()->json($siteIncharge->load('project'));
+        return response()->json($siteIncharge->load('site'));
     }
 
     public function update(Request $request, SiteIncharge $siteIncharge)
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'nullable|exists:sites,id',
             'name' => 'required|string|max:255',
             'opening_bal' => 'nullable|numeric',
             'credit' => 'nullable|numeric',
@@ -70,7 +70,7 @@ class SiteInchargeController extends Controller
             'balance' => $balance,
         ]));
 
-        return response()->json($siteIncharge->load('project'));
+        return response()->json($siteIncharge->load('site'));
     }
 
     public function destroy(SiteIncharge $siteIncharge)

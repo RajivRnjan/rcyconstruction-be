@@ -12,5 +12,6 @@ class Supplier extends Model
         'contact_number',
         'address',
         'gst_number',
+        'outstanding_amount'
     ];
 }

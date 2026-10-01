@@ -16,7 +16,7 @@ class HeadOfficeExpenseController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'expenses_head' => 'required|string|max:255',
             'supplier_id' => 'required|exists:suppliers,id',
             'mode_of_payment' => 'nullable|string|max:255',
@@ -39,7 +39,7 @@ class HeadOfficeExpenseController extends Controller
     {
         $validated = $request->validate([
             'date' => 'nullable|date',
-            'project_id' => 'required|exists:master_sheets,id',
+            'site_id' => 'required|exists:sites,id',
             'expenses_head' => 'required|string|max:255',
             'supplier_id' => 'required|exists:suppliers,id',
             'mode_of_payment' => 'nullable|string|max:255',

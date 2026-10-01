@@ -8,7 +8,7 @@ class HeadOfficeExpense extends Model
 {
     protected $fillable = [
         'date',
-        'project_id',
+        'site_id',
         'expenses_head',
         'supplier_id',
         'mode_of_payment',
@@ -17,9 +17,9 @@ class HeadOfficeExpense extends Model
         'remark',
     ];
 
-    public function project()
+    public function site()
     {
-        return $this->belongsTo(MasterSheet::class, 'project_id');
+        return $this->belongsTo(Site::class, 'site_id');
     }
 
     public function supplier()
