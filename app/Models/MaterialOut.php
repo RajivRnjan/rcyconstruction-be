@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class MaterialOut extends Model
 {
-    protected $fillable = ['unit', 
+    protected $fillable = ['unit',
         'date',
+        'type',
         'site_id',
+        'to_site_id',
         'expenses_head_id',
         'supplier_id',
         'material_id',
@@ -38,5 +40,10 @@ class MaterialOut extends Model
     public function material()
     {
         return $this->belongsTo(Material::class);
+    }
+
+    public function toSite()
+    {
+        return $this->belongsTo(Site::class, 'to_site_id');
     }
 }

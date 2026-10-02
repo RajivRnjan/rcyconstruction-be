@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('suppliers/{supplier}/transactions', [SupplierTransactionController::class, 'store']);
     Route::apiResource('materials', MaterialController::class);
     Route::apiResource('expenses-heads', ExpensesHeadController::class);
+    Route::get('material-stock', [\App\Http\Controllers\MaterialInController::class, 'stockBySite']);
     Route::apiResource('material-ins', \App\Http\Controllers\MaterialInController::class);
     Route::apiResource('material-outs', \App\Http\Controllers\MaterialOutController::class);
     Route::apiResource('subcontractors', \App\Http\Controllers\SubcontractorController::class);

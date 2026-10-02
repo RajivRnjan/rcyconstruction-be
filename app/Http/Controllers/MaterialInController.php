@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MaterialIn;
+use App\Models\Site;
 use Illuminate\Http\Request;
 
 class MaterialInController extends Controller
@@ -12,7 +13,35 @@ class MaterialInController extends Controller
      */
     public function index()
     {
-        return response()->json(MaterialIn::with(['supplier', 'material'])->orderBy('created_at', 'desc')->get());
+        return response()->json(MaterialIn::with(['supplier', 'material', 'site'])->orderBy('created_at', 'desc')->get());
+    }
+
+    /**
+     * Return material-in entries grouped by site.
+     */
+    public function stockBySite(Request $request)
+    {
+        $query = MaterialIn::with(['supplier', 'material', 'site', 'transferredFromSite'])
+            ->orderBy('date', 'desc');
+
+        if ($request->has('site_id') && !empty($request->site_id)) {
+            $query->where('site_id', $request->site_id);
+        }
+
+        $entries = $query->get();
+
+        // Group by site
+        $grouped = $entries->groupBy('site_id')->map(function ($items, $siteId) {
+            $site = $items->first()->site;
+            return [
+                'site_id'     => $siteId,
+                'site_name'   => $site ? $site->name : 'Unknown',
+                'total_amount'=> $items->sum('amount'),
+                'entries'     => $items->values(),
+            ];
+        })->values();
+
+        return response()->json($grouped);
     }
 
     /**

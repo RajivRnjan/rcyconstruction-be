@@ -62,18 +62,26 @@ class DailyReportController extends Controller
     public function show($id)
     {
         $report = DailyReport::with(['staff', 'expenses', 'subcontractors'])->findOrFail($id);
-        
-        // Also fetch material in/out for that date and site
+
         $materialIn = \App\Models\MaterialIn::where('date', $report->date)
-            ->with('material')->get();
-            
-        $materialOut = \App\Models\MaterialOut::where('date', $report->date)
-            ->with(['material', 'expensesHead'])->get();
-            
+            ->where('site_id', $report->site_id)
+            ->with(['material', 'supplier'])->get();
+
+        // Split material_outs by type
+        $allOuts = \App\Models\MaterialOut::where('date', $report->date)
+            ->where('site_id', $report->site_id)
+            ->with(['material', 'expensesHead', 'toSite'])->get();
+
+        $materialUsed    = $allOuts->where('type', 'used')->values();
+        $materialTransfer = $allOuts->where('type', 'transfer')->values();
+
         return response()->json([
-            'report' => $report,
-            'material_in' => $materialIn,
-            'material_out' => $materialOut
+            'report'            => $report,
+            'material_in'       => $materialIn,
+            'material_used'     => $materialUsed,
+            'material_transfer' => $materialTransfer,
+            // keep backward compat
+            'material_out'      => $allOuts,
         ]);
     }
 
@@ -86,27 +94,41 @@ class DailyReportController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'site_id' => 'required|exists:sites,id',
-            'date' => 'required|date',
-            'site_incharge' => 'nullable|string',
+            'report_id'           => 'nullable|integer|exists:daily_reports,id',
+            'site_id'             => 'required|exists:sites,id',
+            'date'                => 'required|date',
+            'site_incharge'       => 'nullable|string',
             'outstanding_balance' => 'nullable|numeric',
-            'staff_attendance' => 'array',
-            'expenses' => 'array',
-            'subcontractors' => 'array',
-            'material_in' => 'array',
-            'material_out' => 'array',
+            'staff_attendance'    => 'array',
+            'expenses'            => 'array',
+            'subcontractors'      => 'array',
+            'material_in'         => 'array',
+            'material_out'        => 'array',
+            'material_used'       => 'array',
+            'material_transfer'   => 'array',
         ]);
 
         try {
             DB::beginTransaction();
 
-            $report = DailyReport::updateOrCreate(
-                ['site_id' => $validated['site_id'], 'date' => $validated['date']],
-                [
-                    'site_incharge' => $validated['site_incharge'] ?? null,
-                    'outstanding_balance' => !empty($validated['outstanding_balance']) ? $validated['outstanding_balance'] : 0,
-                ]
-            );
+            $updateData = [
+                'site_id'             => $validated['site_id'],
+                'date'                => $validated['date'],
+                'site_incharge'       => $validated['site_incharge'] ?? null,
+                'outstanding_balance' => !empty($validated['outstanding_balance']) ? $validated['outstanding_balance'] : 0,
+            ];
+
+            if (!empty($validated['report_id'])) {
+                // Editing an existing report — update by ID to avoid duplicate creation
+                $report = DailyReport::findOrFail($validated['report_id']);
+                $report->update($updateData);
+            } else {
+                // New report — use updateOrCreate on site+date to avoid duplicates
+                $report = DailyReport::updateOrCreate(
+                    ['site_id' => $validated['site_id'], 'date' => $validated['date']],
+                    $updateData
+                );
+            }
 
             // Staff
             if (!empty($validated['staff_attendance'])) {
@@ -151,12 +173,13 @@ class DailyReportController extends Controller
 
             // Materials In
             if (!empty($validated['material_in'])) {
-                MaterialIn::where('date', $validated['date'])->delete(); // simplistic approach
+                MaterialIn::where('date', $validated['date'])->where('site_id', $validated['site_id'])->delete();
                 foreach ($validated['material_in'] as $mat) {
                     if (!empty($mat['supplier'])) {
                         $material = \App\Models\Material::firstOrCreate(['name' => $mat['material']]);
                         MaterialIn::create([
                             'date' => $validated['date'],
+                            'site_id' => $validated['site_id'],
                             'supplier_id' => $mat['supplier'],
                             'material_id' => $material->id,
                             'unit' => $mat['unit'] ?? null,
@@ -168,34 +191,60 @@ class DailyReportController extends Controller
                 }
             }
 
-            // Materials Out
-            if (!empty($validated['material_out'])) {
-                MaterialOut::where('date', $validated['date'])->delete();
-                foreach ($validated['material_out'] as $mat) {
-                    if (!empty($mat['supplier'])) {
+            // Material Used
+            MaterialOut::where('date', $validated['date'])->where('site_id', $validated['site_id'])->delete();
+            if (!empty($validated['material_used'])) {
+                foreach ($validated['material_used'] as $mat) {
+                    if (!empty($mat['material'])) {
                         $material = \App\Models\Material::firstOrCreate(['name' => $mat['material']]);
-                        
-                        $expHeadId = null;
-                        if (!empty($mat['expense_head'])) {
-                            $eh = \App\Models\ExpensesHead::firstOrCreate(['name' => $mat['expense_head']]);
-                            $expHeadId = $eh->id;
-                        }
-                        
-                        // Get site_id from site
-                        $site = \App\Models\Site::find($validated['site_id']);
-                        
                         MaterialOut::create([
-                            'date' => $validated['date'],
-                            'site_id' => $site ? $site->site_id : null,
-                            'supplier_id' => $mat['supplier'],
+                            'type'        => 'used',
+                            'date'        => $validated['date'],
+                            'site_id'     => $validated['site_id'],
                             'material_id' => $material->id,
-                            'expenses_head_id' => $expHeadId,
-                            'qnty' => !empty($mat['qnty']) ? (float)$mat['qnty'] : 0,
-                            'rate' => !empty($mat['rate']) ? (float)$mat['rate'] : 0,
-                            'amount' => !empty($mat['amount']) ? (float)$mat['amount'] : 0,
-                            'paid' => !empty($mat['paid']) ? (float)$mat['paid'] : 0,
-                            'balance' => !empty($mat['balance']) ? (float)$mat['balance'] : 0,
-                            'remark' => $mat['remark'] ?? null,
+                            'unit'        => $mat['unit'] ?? null,
+                            'qnty'        => !empty($mat['qnty']) ? (float)$mat['qnty'] : 0,
+                            'remark'      => $mat['remark'] ?? null,
+                        ]);
+                    }
+                }
+            }
+
+            // Material Transfer
+            if (!empty($validated['material_transfer'])) {
+                // Also remove old transfer-created material_in entries for this date+site to avoid duplicates
+                MaterialIn::where('date', $validated['date'])
+                    ->where('site_id', '!=', $validated['site_id'])
+                    ->where('transferred_from_site_id', $validated['site_id'])
+                    ->delete();
+
+                foreach ($validated['material_transfer'] as $mat) {
+                    if (!empty($mat['material']) && !empty($mat['to_site'])) {
+                        $material = \App\Models\Material::firstOrCreate(['name' => $mat['material']]);
+                        $qnty     = !empty($mat['qnty']) ? (float)$mat['qnty'] : 0;
+
+                        // Record the transfer in material_outs
+                        MaterialOut::create([
+                            'type'       => 'transfer',
+                            'date'       => $validated['date'],
+                            'site_id'    => $validated['site_id'],
+                            'to_site_id' => (int)$mat['to_site'],
+                            'material_id'=> $material->id,
+                            'unit'       => $mat['unit'] ?? null,
+                            'qnty'       => $qnty,
+                            'remark'     => $mat['remark'] ?? null,
+                        ]);
+
+                        // Auto-create material_in for destination site
+                        MaterialIn::create([
+                            'date'                    => $validated['date'],
+                            'site_id'                 => (int)$mat['to_site'],
+                            'transferred_from_site_id'=> $validated['site_id'],
+                            'material_id'             => $material->id,
+                            'unit'                    => $mat['unit'] ?? null,
+                            'qnty'                    => $qnty,
+                            'rate'                    => 0,
+                            'amount'                  => 0,
                         ]);
                     }
                 }

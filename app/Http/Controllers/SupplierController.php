@@ -33,6 +33,9 @@ class SupplierController extends Controller
             $supplier->total_paid = \App\Models\DailyReportExpense::where('name', $supplier->name)
                 ->whereIn('type', ['SUPPLIER PAYMENT', 'PARTY PAYMENT'])
                 ->sum('amount');
+            $supplier->total_payable = \App\Models\MaterialIn::where('supplier_id', $supplier->id)
+                ->sum('amount');
+            $supplier->balance_amount = $supplier->total_payable - $supplier->total_paid;
         }
 
         return response()->json($suppliers);
