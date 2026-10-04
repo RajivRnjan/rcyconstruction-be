@@ -1,9 +1,19 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+// Run migrations via browser (Use a secret URL for security)
+Route::get('/run-migrations-secret-123', function () {
+    try {
+        Artisan::call('migrate', ['--force' => true]);
+        return 'Migrations ran successfully! Output: ' . Artisan::output();
+    } catch (\Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
 });
 
 

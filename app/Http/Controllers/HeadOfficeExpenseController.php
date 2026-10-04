@@ -9,8 +9,7 @@ class HeadOfficeExpenseController extends Controller
 {
     public function index(Request $request)
     {
-        // Load the new polymorphic-like relationships if they exist on the model
-        $query = HeadOfficeExpense::with(['project', 'supplier', 'account'])->orderBy('created_at', 'desc');
+        $query = HeadOfficeExpense::with(['site', 'supplier', 'account'])->orderBy('created_at', 'desc');
 
         if ($request->has('site_id') && !empty($request->site_id)) {
             $query->where('site_id', $request->site_id);
@@ -59,12 +58,12 @@ class HeadOfficeExpenseController extends Controller
 
         $expense = HeadOfficeExpense::create($validated);
 
-        return response()->json($expense->load(['project', 'supplier', 'account']), 201);
+        return response()->json($expense->load(['site', 'supplier', 'account']), 201);
     }
 
     public function show(HeadOfficeExpense $headOfficeExpense)
     {
-        return response()->json($headOfficeExpense->load(['project', 'supplier', 'account']));
+        return response()->json($headOfficeExpense->load(['site', 'supplier', 'account']));
     }
 
     public function update(Request $request, HeadOfficeExpense $headOfficeExpense)
@@ -85,7 +84,7 @@ class HeadOfficeExpenseController extends Controller
 
         $headOfficeExpense->update($validated);
 
-        return response()->json($headOfficeExpense->load(['project', 'supplier', 'account']));
+        return response()->json($headOfficeExpense->load(['site', 'supplier', 'account']));
     }
 
     public function destroy(HeadOfficeExpense $headOfficeExpense)

@@ -53,6 +53,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('material-outs', \App\Http\Controllers\MaterialOutController::class);
     Route::apiResource('subcontractors', \App\Http\Controllers\SubcontractorController::class);
     Route::apiResource('site-incharges', \App\Http\Controllers\SiteInchargeController::class);
+    Route::get('site-incharges-summary', [\App\Http\Controllers\SiteInchargeController::class, 'summary']);
+    Route::get('site-incharges-history/{name}', [\App\Http\Controllers\SiteInchargeController::class, 'history']);
+
     Route::apiResource('sites', \App\Http\Controllers\SiteController::class);
     Route::get('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'index']);
     Route::get('daily-reports/expense-suggestions', [\App\Http\Controllers\DailyReportController::class, 'getExpenseSuggestions']);

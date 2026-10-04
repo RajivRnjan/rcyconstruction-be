@@ -40,6 +40,32 @@ class SiteInchargeController extends Controller
         return response()->json($records);
     }
 
+    
+    public function summary(Request $request)
+    {
+        $query = SiteIncharge::query()
+            ->selectRaw("MAX(id) as id, name, MAX(site_id) as site_id, SUM(opening_bal) as opening_bal, SUM(credit) as credit, SUM(exp) as exp, SUM(balance) as balance")
+            ->groupBy("name");
+
+        if ($request->has("search") && !empty($request->search)) {
+            $search = $request->search;
+            $query->where("name", "like", "%{$search}%");
+        }
+
+        if ($request->has("all")) {
+            $records = $query->with("site")->get();
+        } else {
+            $records = $query->with("site")->paginate($request->get("per_page", 10));
+        }
+        return response()->json($records);
+    }
+
+    public function history($name)
+    {
+        $records = SiteIncharge::with("site")->where("name", $name)->orderBy("created_at", "desc")->get();
+        return response()->json($records);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
