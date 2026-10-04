@@ -26,6 +26,12 @@ class DailyReportController extends Controller
         if ($request->has('date') && !empty($request->date)) {
             $query->where('daily_reports.date', $request->date);
         }
+        if ($request->has('start_date') && !empty($request->start_date)) {
+            $query->where('daily_reports.date', '>=', $request->start_date);
+        }
+        if ($request->has('end_date') && !empty($request->end_date)) {
+            $query->where('daily_reports.date', '<=', $request->end_date);
+        }
         
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -263,13 +269,25 @@ class DailyReportController extends Controller
     {
         try {
             $report = DailyReport::findOrFail($id);
-            // Dependencies (staff, expenses, subcontractors, etc.) should be cascade deleted if configured in DB.
-            // If not, we might need to delete them manually. Let's delete material first.
-            \App\Models\MaterialIn::where('date', $report->date)->whereHas('site', function($q) use ($report) {
-                 // Wait, material doesn't have site_id directly in some setups, but DailyReport is per site/date.
-                 // The easiest is just deleting the report itself.
-            });
+            
+            // Delete associated Material In (materials added to this site)
+            \App\Models\MaterialIn::where('date', $report->date)
+                ->where('site_id', $report->site_id)
+                ->delete();
+
+            // Delete associated Material In on OTHER sites that were auto-created from this site's transfer today
+            \App\Models\MaterialIn::where('date', $report->date)
+                ->where('transferred_from_site_id', $report->site_id)
+                ->delete();
+
+            // Delete associated Material Out (including used and transfer)
+            \App\Models\MaterialOut::where('date', $report->date)
+                ->where('site_id', $report->site_id)
+                ->delete();
+
+            // Daily report relations (staff, expenses, subcontractors) will be cascade deleted
             $report->delete();
+            
             return response()->json(['message' => 'Report deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to delete report', 'error' => $e->getMessage()], 500);

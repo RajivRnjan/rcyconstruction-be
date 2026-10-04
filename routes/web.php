@@ -70,3 +70,9 @@ Route::get('/fix-unknown-sites', function () {
     
     return "Success! Mapped $updatedIn Material IN records and $updatedOut Material OUT records to their correct sites based on their dates.";
 });
+
+Route::get('/cleanup-orphans', function() {
+    $deletedIn = \App\Models\MaterialIn::where('date', '2026-09-26')->delete();
+    $deletedOut = \App\Models\MaterialOut::where('date', '2026-09-26')->delete();
+    return "Deleted {$deletedIn} MaterialIn records and {$deletedOut} MaterialOut records for 26th Sept 2026.";
+});

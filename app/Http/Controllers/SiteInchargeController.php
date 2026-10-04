@@ -14,6 +14,10 @@ class SiteInchargeController extends Controller
         if ($request->has('site_id') && !empty($request->site_id)) {
             $query->where('site_id', $request->site_id);
         }
+        
+        if ($request->has('date') && !empty($request->date)) {
+            $query->whereDate('date', $request->date);
+        }
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
