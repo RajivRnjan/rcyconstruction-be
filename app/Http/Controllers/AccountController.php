@@ -59,6 +59,88 @@ class AccountController extends Controller
         return response()->json($account);
     }
 
+    public function history($id)
+    {
+        $account = Account::findOrFail($id);
+        $transactions = collect();
+
+        // 1. Initial Opening Balance (treated as a transaction)
+        if ($account->opening_balance > 0 || $account->opening_balance < 0) {
+            $transactions->push([
+                'id' => 'ob_' . $account->id,
+                'date' => $account->created_at->format('Y-m-d'),
+                'type' => 'Opening Balance',
+                'description' => 'Account Opening Balance',
+                'receipt' => $account->opening_balance > 0 ? (float)$account->opening_balance : 0,
+                'payment' => $account->opening_balance < 0 ? (float)abs($account->opening_balance) : 0,
+                'created_at' => $account->created_at,
+            ]);
+        }
+
+        // 2. Site Incharge payments (Credits)
+        $siteIncharges = \App\Models\SiteIncharge::where('account_id', $id)->where('credit', '>', 0)->get();
+        foreach ($siteIncharges as $si) {
+            $transactions->push([
+                'id' => 'si_' . $si->id,
+                'date' => $si->date ? date('Y-m-d', strtotime($si->date)) : $si->created_at->format('Y-m-d'),
+                'type' => 'Site Incharge Credit',
+                'description' => 'Paid to: ' . $si->name . ($si->remark ? ' (' . $si->remark . ')' : ''),
+                'receipt' => 0,
+                'payment' => (float)$si->credit,
+                'created_at' => $si->created_at,
+            ]);
+        }
+
+        // 3. Head Office Incomes (Receipts)
+        if (class_exists(\App\Models\HeadOfficeIncome::class)) {
+            $hoIncomes = \App\Models\HeadOfficeIncome::where('account_id', $id)->get();
+            foreach ($hoIncomes as $inc) {
+                $transactions->push([
+                    'id' => 'hoi_' . $inc->id,
+                    'date' => $inc->date ? date('Y-m-d', strtotime($inc->date)) : $inc->created_at->format('Y-m-d'),
+                    'type' => 'HO Income',
+                    'description' => 'Received from: ' . $inc->source . ($inc->details ? ' (' . $inc->details . ')' : ''),
+                    'receipt' => (float)$inc->amount,
+                    'payment' => 0,
+                    'created_at' => $inc->created_at,
+                ]);
+            }
+        }
+
+        // 4. Head Office Expenses (Payments)
+        if (class_exists(\App\Models\HeadOfficeExpense::class)) {
+            $hoExpenses = \App\Models\HeadOfficeExpense::where('account_id', $id)->get();
+            foreach ($hoExpenses as $exp) {
+                $transactions->push([
+                    'id' => 'hoe_' . $exp->id,
+                    'date' => $exp->date ? date('Y-m-d', strtotime($exp->date)) : $exp->created_at->format('Y-m-d'),
+                    'type' => 'HO Expense',
+                    'description' => 'Paid for: ' . $exp->expense_type . ($exp->details ? ' (' . $exp->details . ')' : ''),
+                    'receipt' => 0,
+                    'payment' => (float)$exp->amount,
+                    'created_at' => $exp->created_at,
+                ]);
+            }
+        }
+
+        // Sort by date ascending, then calculate running balance
+        $sorted = $transactions->sortBy(function ($item) {
+            return $item['date'] . ' ' . $item['created_at'];
+        })->values();
+
+        $running_balance = 0;
+        $sorted = $sorted->map(function ($item) use (&$running_balance) {
+            $running_balance += $item['receipt'] - $item['payment'];
+            $item['balance'] = $running_balance;
+            return $item;
+        });
+
+        // Return descending for UI
+        return response()->json($sorted->sortByDesc(function ($item) {
+            return $item['date'] . ' ' . $item['created_at'];
+        })->values());
+    }
+
     public function update(Request $request, $id)
     {
         $account = Account::findOrFail($id);

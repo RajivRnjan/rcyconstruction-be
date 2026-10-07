@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/accounts', [\App\Http\Controllers\AccountController::class, 'index']);
     Route::post('/accounts', [\App\Http\Controllers\AccountController::class, 'store']);
     Route::get('/accounts/{id}', [\App\Http\Controllers\AccountController::class, 'show']);
+    Route::get('/accounts/{id}/history', [\App\Http\Controllers\AccountController::class, 'history']);
     Route::put('/accounts/{id}', [\App\Http\Controllers\AccountController::class, 'update']);
     Route::delete('/accounts/{id}', [\App\Http\Controllers\AccountController::class, 'destroy']);
 
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('sites', \App\Http\Controllers\SiteController::class);
     Route::get('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'index']);
+    Route::get('daily-reports/all-staff', [\App\Http\Controllers\DailyReportController::class, 'allStaff']);
     Route::get('daily-reports/expense-suggestions', [\App\Http\Controllers\DailyReportController::class, 'getExpenseSuggestions']);
     Route::get('daily-reports/{id}', [\App\Http\Controllers\DailyReportController::class, 'show']);
     Route::post('daily-reports', [\App\Http\Controllers\DailyReportController::class, 'store']);

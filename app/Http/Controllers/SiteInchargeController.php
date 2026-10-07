@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\SiteIncharge;
+use App\Models\Account;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class SiteInchargeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = SiteIncharge::with('site')->orderBy('created_at', 'desc');
+        $query = SiteIncharge::with(['site', 'account'])->orderBy('created_at', 'desc');
 
         if ($request->has('site_id') && !empty($request->site_id)) {
             $query->where('site_id', $request->site_id);
@@ -90,8 +92,70 @@ class SiteInchargeController extends Controller
 
     public function history($name)
     {
-        $records = SiteIncharge::with("site")->where("name", $name)->orderBy("created_at", "desc")->get();
-        return response()->json($records);
+        // Get manual entries
+        $manualRecords = SiteIncharge::with(["site", "account"])
+            ->where("name", $name)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'is_manual' => true,
+                    'date' => $item->date ? date('Y-m-d', strtotime($item->date)) : date('Y-m-d', strtotime($item->created_at)),
+                    'created_at' => $item->created_at,
+                    'opening_bal' => (float)$item->opening_bal,
+                    'credit' => (float)$item->credit,
+                    'exp' => (float)$item->exp,
+                    'site_name' => $item->site ? $item->site->name : '-',
+                    'account_name' => $item->account ? $item->account->account_details : '-',
+                    'remark' => $item->remark,
+                ];
+            });
+
+        // Get daily report expenses
+        $reports = \App\Models\DailyReport::where('site_incharge', $name)
+            ->with(['expenses', 'subcontractors', 'site'])
+            ->get();
+            
+        $reportRecords = collect();
+        foreach ($reports as $report) {
+            $totalExp = $report->expenses->sum('amount');
+            $totalSub = $report->subcontractors->sum('amount');
+            $total = $totalExp + $totalSub;
+            
+            if ($total > 0) {
+                $reportRecords->push([
+                    'id' => 'dr_' . $report->id,
+                    'is_manual' => false,
+                    'date' => $report->date,
+                    'created_at' => $report->created_at,
+                    'opening_bal' => 0,
+                    'credit' => 0,
+                    'exp' => (float)$total,
+                    'site_name' => $report->site ? $report->site->name : '-',
+                    'account_name' => '-',
+                    'remark' => '-',
+                ]);
+            }
+        }
+
+        // Merge, sort by date ascending, calculate running balance
+        $all = $manualRecords->concat($reportRecords)
+            ->sortBy(function ($item) {
+                return $item['date'] . ' ' . $item['created_at'];
+            })
+            ->values();
+
+        $running_balance = 0;
+        $all = $all->map(function ($item) use (&$running_balance) {
+            $running_balance += $item['opening_bal'] + $item['credit'] - $item['exp'];
+            $item['balance'] = $running_balance;
+            return $item;
+        });
+
+        // Return sorted by date descending for UI
+        return response()->json($all->sortByDesc(function ($item) {
+            return $item['date'] . ' ' . $item['created_at'];
+        })->values());
     }
 
     public function store(Request $request)
@@ -99,11 +163,13 @@ class SiteInchargeController extends Controller
         $validated = $request->validate([
             'date' => 'nullable|date',
             'site_id' => 'nullable|exists:sites,id',
+            'account_id' => 'nullable|exists:accounts,id',
             'name' => 'required|string|max:255',
             'opening_bal' => 'nullable|numeric',
             'credit' => 'nullable|numeric',
             'debit_account' => 'nullable|string',
             'exp' => 'nullable|numeric',
+            'remark' => 'nullable|string',
         ]);
 
         $opening_bal = $validated['opening_bal'] ?? 0;
@@ -112,12 +178,26 @@ class SiteInchargeController extends Controller
         
         $balance = $opening_bal + $credit - $exp;
 
-        $siteIncharge = SiteIncharge::create(array_merge($validated, [
-            'opening_bal' => $opening_bal,
-            'credit' => $credit,
-            'exp' => $exp,
-            'balance' => $balance,
-        ]));
+        $siteIncharge = DB::transaction(function () use ($validated, $opening_bal, $credit, $exp, $balance) {
+            $siteIncharge = SiteIncharge::create(array_merge($validated, [
+                'opening_bal' => $opening_bal,
+                'credit' => $credit,
+                'exp' => $exp,
+                'balance' => $balance,
+            ]));
+
+            // If an account is selected and credit is given, it's a payment from that account
+            if ($siteIncharge->account_id && $credit > 0) {
+                $account = Account::find($siteIncharge->account_id);
+                if ($account) {
+                    $account->payment_amount += $credit;
+                    $account->balance -= $credit;
+                    $account->save();
+                }
+            }
+
+            return $siteIncharge;
+        });
 
         return response()->json($siteIncharge->load('site'), 201);
     }
@@ -132,11 +212,13 @@ class SiteInchargeController extends Controller
         $validated = $request->validate([
             'date' => 'nullable|date',
             'site_id' => 'nullable|exists:sites,id',
+            'account_id' => 'nullable|exists:accounts,id',
             'name' => 'required|string|max:255',
             'opening_bal' => 'nullable|numeric',
             'credit' => 'nullable|numeric',
             'debit_account' => 'nullable|string',
             'exp' => 'nullable|numeric',
+            'remark' => 'nullable|string',
         ]);
 
         $opening_bal = $validated['opening_bal'] ?? 0;
@@ -145,19 +227,52 @@ class SiteInchargeController extends Controller
         
         $balance = $opening_bal + $credit - $exp;
 
-        $siteIncharge->update(array_merge($validated, [
-            'opening_bal' => $opening_bal,
-            'credit' => $credit,
-            'exp' => $exp,
-            'balance' => $balance,
-        ]));
+        DB::transaction(function () use ($siteIncharge, $validated, $opening_bal, $credit, $exp, $balance) {
+            // Revert old credit from old account
+            if ($siteIncharge->account_id && $siteIncharge->credit > 0) {
+                $oldAccount = Account::find($siteIncharge->account_id);
+                if ($oldAccount) {
+                    $oldAccount->payment_amount -= $siteIncharge->credit;
+                    $oldAccount->balance += $siteIncharge->credit;
+                    $oldAccount->save();
+                }
+            }
+
+            $siteIncharge->update(array_merge($validated, [
+                'opening_bal' => $opening_bal,
+                'credit' => $credit,
+                'exp' => $exp,
+                'balance' => $balance,
+            ]));
+
+            // Apply new credit to new account
+            if ($siteIncharge->account_id && $credit > 0) {
+                $newAccount = Account::find($siteIncharge->account_id);
+                if ($newAccount) {
+                    $newAccount->payment_amount += $credit;
+                    $newAccount->balance -= $credit;
+                    $newAccount->save();
+                }
+            }
+        });
 
         return response()->json($siteIncharge->load('site'));
     }
 
     public function destroy(SiteIncharge $siteIncharge)
     {
-        $siteIncharge->delete();
+        DB::transaction(function () use ($siteIncharge) {
+            // Revert credit from account before deleting
+            if ($siteIncharge->account_id && $siteIncharge->credit > 0) {
+                $account = Account::find($siteIncharge->account_id);
+                if ($account) {
+                    $account->payment_amount -= $siteIncharge->credit;
+                    $account->balance += $siteIncharge->credit;
+                    $account->save();
+                }
+            }
+            $siteIncharge->delete();
+        });
         return response()->json(null, 204);
     }
 }

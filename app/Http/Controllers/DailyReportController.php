@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DailyReport;
 use App\Models\MaterialIn;
 use App\Models\MaterialOut;
+use App\Models\StaffSalary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -102,14 +103,36 @@ class DailyReportController extends Controller
         $materialUsed    = $allOuts->where('type', 'used')->values();
         $materialTransfer = $allOuts->where('type', 'transfer')->values();
 
+        // All staff for attendance checkboxes
+        $allStaff = StaffSalary::select('id', 'name')
+            ->whereNotNull('name')
+            ->where('name', '!=', '')
+            ->orderBy('name')
+            ->get();
+
         return response()->json([
             'report'            => $report,
+            'all_staff'         => $allStaff,
             'material_in'       => $materialIn,
             'material_used'     => $materialUsed,
             'material_transfer' => $materialTransfer,
             // keep backward compat
             'material_out'      => $allOuts,
         ]);
+    }
+
+    /**
+     * Return all staff names for attendance selection on new reports.
+     */
+    public function allStaff()
+    {
+        $staff = StaffSalary::select('id', 'name')
+            ->whereNotNull('name')
+            ->where('name', '!=', '')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($staff);
     }
 
     public function indexBySite($site_id)
@@ -157,14 +180,14 @@ class DailyReportController extends Controller
                 );
             }
 
-            // Staff
+            // Staff attendance — save all (present and absent)
+            $report->staff()->delete();
             if (!empty($validated['staff_attendance'])) {
-                $report->staff()->delete();
                 foreach ($validated['staff_attendance'] as $staff) {
                     $report->staff()->create([
-                        'staff_id' => $staff['staff_id'],
+                        'staff_id' => $staff['staff_id'] ?? null,
                         'name' => $staff['name'],
-                        'status' => $staff['status'],
+                        'status' => $staff['status'] ?? 'A',
                     ]);
                 }
             }
