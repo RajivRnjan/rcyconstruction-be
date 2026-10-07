@@ -44,7 +44,35 @@ class SiteInchargeController extends Controller
     public function summary(Request $request)
     {
         $query = SiteIncharge::query()
-            ->selectRaw("MAX(id) as id, name, MAX(site_id) as site_id, SUM(opening_bal) as opening_bal, SUM(credit) as credit, SUM(exp) as exp, SUM(balance) as balance")
+            ->selectRaw("
+                MAX(id) as id, 
+                name, 
+                MAX(site_id) as site_id, 
+                SUM(opening_bal) as opening_bal, 
+                SUM(credit) as credit, 
+                SUM(exp) + COALESCE((
+                    SELECT SUM(dre.amount) 
+                    FROM daily_reports dr 
+                    JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id 
+                    WHERE dr.site_incharge = site_incharges.name
+                ), 0) + COALESCE((
+                    SELECT SUM(drs.amount) 
+                    FROM daily_reports dr 
+                    JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id 
+                    WHERE dr.site_incharge = site_incharges.name
+                ), 0) as exp, 
+                (SUM(opening_bal) + SUM(credit)) - (SUM(exp) + COALESCE((
+                    SELECT SUM(dre.amount) 
+                    FROM daily_reports dr 
+                    JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id 
+                    WHERE dr.site_incharge = site_incharges.name
+                ), 0) + COALESCE((
+                    SELECT SUM(drs.amount) 
+                    FROM daily_reports dr 
+                    JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id 
+                    WHERE dr.site_incharge = site_incharges.name
+                ), 0)) as balance
+            ")
             ->groupBy("name");
 
         if ($request->has("search") && !empty($request->search)) {

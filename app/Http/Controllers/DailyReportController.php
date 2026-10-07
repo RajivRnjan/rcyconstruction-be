@@ -42,7 +42,17 @@ class DailyReportController extends Controller
             });
         }
         
-        $query->select('daily_reports.*', 'sites.name as site_name');
+        $query->selectRaw("
+            daily_reports.*, 
+            sites.name as site_name,
+            (
+                COALESCE((SELECT SUM(opening_bal) + SUM(credit) - SUM(exp) FROM site_incharges WHERE name = daily_reports.site_incharge), 0)
+                -
+                COALESCE((SELECT SUM(dre.amount) FROM daily_reports dr JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge), 0)
+                -
+                COALESCE((SELECT SUM(drs.amount) FROM daily_reports dr JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge), 0)
+            ) as outstanding_balance
+        ");
         $query->orderBy('daily_reports.date', 'desc');
         
         if ($request->has('all')) {
@@ -67,7 +77,18 @@ class DailyReportController extends Controller
 
     public function show($id)
     {
-        $report = DailyReport::with(['staff', 'expenses', 'subcontractors'])->findOrFail($id);
+        $report = DailyReport::with(['staff', 'expenses', 'subcontractors'])
+            ->selectRaw("
+                daily_reports.*, 
+                (
+                    COALESCE((SELECT SUM(opening_bal) + SUM(credit) - SUM(exp) FROM site_incharges WHERE name = daily_reports.site_incharge), 0)
+                    -
+                    COALESCE((SELECT SUM(dre.amount) FROM daily_reports dr JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge AND dr.id != daily_reports.id), 0)
+                    -
+                    COALESCE((SELECT SUM(drs.amount) FROM daily_reports dr JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge AND dr.id != daily_reports.id), 0)
+                ) as outstanding_balance
+            ")
+            ->findOrFail($id);
 
         $materialIn = \App\Models\MaterialIn::where('date', $report->date)
             ->where('site_id', $report->site_id)
