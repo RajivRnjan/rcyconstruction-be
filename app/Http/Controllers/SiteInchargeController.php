@@ -45,49 +45,80 @@ class SiteInchargeController extends Controller
     
     public function summary(Request $request)
     {
-        $query = SiteIncharge::query()
-            ->selectRaw("
-                MAX(id) as id, 
-                name, 
-                MAX(site_id) as site_id, 
-                SUM(opening_bal) as opening_bal, 
-                SUM(credit) as credit, 
-                SUM(exp) + COALESCE((
-                    SELECT SUM(dre.amount) 
-                    FROM daily_reports dr 
-                    JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id 
-                    WHERE dr.site_incharge = site_incharges.name
-                ), 0) + COALESCE((
-                    SELECT SUM(drs.amount) 
-                    FROM daily_reports dr 
-                    JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id 
-                    WHERE dr.site_incharge = site_incharges.name
-                ), 0) as exp, 
-                (SUM(opening_bal) + SUM(credit)) - (SUM(exp) + COALESCE((
-                    SELECT SUM(dre.amount) 
-                    FROM daily_reports dr 
-                    JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id 
-                    WHERE dr.site_incharge = site_incharges.name
-                ), 0) + COALESCE((
-                    SELECT SUM(drs.amount) 
-                    FROM daily_reports dr 
-                    JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id 
-                    WHERE dr.site_incharge = site_incharges.name
-                ), 0)) as balance
-            ")
-            ->groupBy("name");
+        $siteInchargeNames = \App\Models\SiteIncharge::pluck('name')->toArray();
+        $dailyReportNames = \App\Models\DailyReport::whereNotNull('site_incharge')
+            ->where('site_incharge', '!=', '')
+            ->pluck('site_incharge')
+            ->toArray();
+            
+        $allNames = array_unique(array_merge($siteInchargeNames, $dailyReportNames));
 
         if ($request->has("search") && !empty($request->search)) {
-            $search = $request->search;
-            $query->where("name", "like", "%{$search}%");
+            $search = strtolower($request->search);
+            $allNames = array_filter($allNames, function ($name) use ($search) {
+                return strpos(strtolower($name), $search) !== false;
+            });
+        }
+        
+        $allNames = array_values($allNames); // reset keys
+
+        $perPage = $request->has("all") ? (count($allNames) > 0 ? count($allNames) : 10) : $request->get("per_page", 10);
+        $page = $request->get("page", 1);
+        
+        $pagedNames = array_slice($allNames, ($page - 1) * $perPage, $perPage);
+        
+        $records = [];
+        foreach ($pagedNames as $name) {
+            $siteInchargeStats = \App\Models\SiteIncharge::where('name', $name)->selectRaw('
+                MAX(id) as id,
+                MAX(site_id) as site_id,
+                SUM(opening_bal) as opening_bal,
+                SUM(credit) as credit,
+                SUM(exp) as exp
+            ')->first();
+            
+            $drExp = \Illuminate\Support\Facades\DB::table('daily_reports')
+                ->join('daily_report_expenses', 'daily_reports.id', '=', 'daily_report_expenses.daily_report_id')
+                ->where('daily_reports.site_incharge', $name)
+                ->sum('daily_report_expenses.amount');
+                
+            $drSub = \Illuminate\Support\Facades\DB::table('daily_reports')
+                ->join('daily_report_subcontractors', 'daily_reports.id', '=', 'daily_report_subcontractors.daily_report_id')
+                ->where('daily_reports.site_incharge', $name)
+                ->sum('daily_report_subcontractors.amount');
+                
+            $opening_bal = $siteInchargeStats->opening_bal ?? 0;
+            $credit = $siteInchargeStats->credit ?? 0;
+            $exp = ($siteInchargeStats->exp ?? 0) + $drExp + $drSub;
+            $balance = ($opening_bal + $credit) - $exp;
+            
+            $site = null;
+            if ($siteInchargeStats && $siteInchargeStats->site_id) {
+                $site = \App\Models\Site::find($siteInchargeStats->site_id);
+            }
+            
+            $records[] = [
+                'id' => $siteInchargeStats->id ?? null,
+                'name' => $name,
+                'site_id' => $siteInchargeStats->site_id ?? null,
+                'opening_bal' => $opening_bal,
+                'credit' => $credit,
+                'exp' => $exp,
+                'balance' => $balance,
+                'site' => $site
+            ];
         }
 
         if ($request->has("all")) {
-            $records = $query->with("site")->get();
-        } else {
-            $records = $query->with("site")->paginate($request->get("per_page", 10));
+            return response()->json($records);
         }
-        return response()->json($records);
+
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator($records, count($allNames), $perPage, $page, [
+            'path' => $request->url(),
+            'query' => $request->query(),
+        ]);
+        
+        return response()->json($paginator);
     }
 
     public function history($name)

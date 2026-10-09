@@ -40,6 +40,7 @@ class SubcontractorController extends Controller
                 'site_id' => $sub->report->site_id ?? null,
                 'site' => $sub->report && $sub->report->site ? $sub->report->site : null,
                 'name' => $sub->name,
+                'no_of_labour' => $sub->no_of_labour,
                 'amount' => $sub->amount,
                 'work_details' => $sub->work_details,
                 'source' => 'Daily Report'
@@ -87,6 +88,145 @@ class SubcontractorController extends Controller
     /**
      * Display the specified resource.
      */
+    public function summary(Request $request)
+    {
+        // Get all unique names from both standalone and daily reports
+        $standaloneNames = \App\Models\Subcontractor::select('name')->distinct()->pluck('name')->toArray();
+        $dailyNames = \App\Models\DailyReportSubcontractor::select('name')->distinct()->pluck('name')->toArray();
+        $names = array_unique(array_merge($standaloneNames, $dailyNames));
+        
+        $search = $request->get('search');
+        if (!empty($search)) {
+            $names = array_filter($names, function($name) use ($search) {
+                return stripos($name, $search) !== false;
+            });
+        }
+        
+        $summary = [];
+        foreach ($names as $name) {
+            // Aggregate totals for this name
+            $standalone = \App\Models\Subcontractor::where('name', $name)->get();
+            $daily = \App\Models\DailyReportSubcontractor::where('name', $name)->get();
+            
+            $total_labour = $standalone->sum('no_of_labour') + $daily->sum('no_of_labour');
+            $total_amount = $standalone->sum('amount') + $daily->sum('amount');
+            
+            $summary[] = [
+                'name' => $name,
+                'total_labour' => $total_labour,
+                'total_amount' => $total_amount
+            ];
+        }
+        
+        // Sort by name
+        usort($summary, function($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
+        
+        if ($request->has('all')) {
+            return response()->json($summary);
+        }
+        
+        // Paginate manually
+        $page = (int)$request->get('page', 1);
+        $perPage = (int)$request->get('per_page', 10);
+        $offset = ($page - 1) * $perPage;
+        
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($summary, $offset, $perPage),
+            count($summary),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+        
+        return response()->json($paginated);
+    }
+    
+
+    public function renameAll(Request $request, $name)
+    {
+        $validated = $request->validate([
+            'new_name' => 'required|string|max:255'
+        ]);
+        $newName = $validated['new_name'];
+
+        \App\Models\Subcontractor::where('name', $name)->update(['name' => $newName]);
+        \App\Models\DailyReportSubcontractor::where('name', $name)->update(['name' => $newName]);
+
+        return response()->json(['message' => 'Renamed successfully']);
+    }
+
+    public function deleteAll($name)
+    {
+        \App\Models\Subcontractor::where('name', $name)->delete();
+        \App\Models\DailyReportSubcontractor::where('name', $name)->delete();
+
+        return response()->json(['message' => 'Deleted successfully']);
+    }
+
+    public function history(Request $request, $name)
+    {
+        $standaloneQuery = \App\Models\Subcontractor::with('site')->where('name', $name);
+        $dailyQuery = \App\Models\DailyReportSubcontractor::with('report.site')->where('name', $name);
+
+        $standalone = $standaloneQuery->get()->map(function ($sub) {
+            $sub->source = 'Standalone';
+            return $sub;
+        });
+
+        $daily = $dailyQuery->get()->map(function ($sub) {
+            return [
+                'id' => 'dr_' . $sub->id,
+                'date' => $sub->report->date ?? null,
+                'site_id' => $sub->report->site_id ?? null,
+                'site' => $sub->report && $sub->report->site ? $sub->report->site : null,
+                'name' => $sub->name,
+                'no_of_labour' => $sub->no_of_labour,
+                'amount' => $sub->amount,
+                'work_details' => $sub->work_details,
+                'source' => 'Daily Report'
+            ];
+        });
+
+        $merged = collect($standalone)->merge($daily)->sortByDesc('date')->values();
+        return response()->json($merged);
+    }
+
+    public function allHistory(Request $request)
+    {
+        $search = $request->get('search');
+        $standaloneQuery = \App\Models\Subcontractor::with('site');
+        $dailyQuery = \App\Models\DailyReportSubcontractor::with('report.site');
+
+        if (!empty($search)) {
+            $standaloneQuery->where('name', 'LIKE', "%{$search}%");
+            $dailyQuery->where('name', 'LIKE', "%{$search}%");
+        }
+
+        $standalone = $standaloneQuery->get()->map(function ($sub) {
+            $sub->source = 'Standalone';
+            return $sub;
+        });
+
+        $daily = $dailyQuery->get()->map(function ($sub) {
+            return [
+                'id' => 'dr_' . $sub->id,
+                'date' => $sub->report->date ?? null,
+                'site_id' => $sub->report->site_id ?? null,
+                'site' => $sub->report && $sub->report->site ? $sub->report->site : null,
+                'name' => $sub->name,
+                'no_of_labour' => $sub->no_of_labour,
+                'amount' => $sub->amount,
+                'work_details' => $sub->work_details,
+                'source' => 'Daily Report'
+            ];
+        });
+
+        $merged = collect($standalone)->merge($daily)->sortByDesc('date')->values();
+        return response()->json($merged);
+    }
+
     public function show($id)
     {
         if (str_starts_with($id, 'dr_')) {
@@ -98,6 +238,7 @@ class SubcontractorController extends Controller
                 'site_id' => $drSub->report->site_id ?? null,
                 'site' => $drSub->report && $drSub->report->site ? $drSub->report->site : null,
                 'name' => $drSub->name,
+                'no_of_labour' => $drSub->no_of_labour,
                 'amount' => $drSub->amount,
                 'work_details' => $drSub->work_details,
                 'source' => 'Daily Report'
@@ -117,6 +258,7 @@ class SubcontractorController extends Controller
             'date' => 'nullable|date',
             'site_id' => 'required|exists:sites,id',
             'name' => 'required|string|max:255',
+            'no_of_labour' => 'nullable|integer',
             'amount' => 'nullable|numeric',
             'work_details' => 'nullable|string',
         ]);
@@ -126,6 +268,7 @@ class SubcontractorController extends Controller
             $drSub = DailyReportSubcontractor::findOrFail($realId);
             $drSub->update([
                 'name' => $validated['name'],
+                'no_of_labour' => $validated['no_of_labour'] ?? 0,
                 'amount' => $validated['amount'] ?? 0,
                 'work_details' => $validated['work_details'],
             ]);
@@ -140,6 +283,7 @@ class SubcontractorController extends Controller
                 'site_id' => $drSub->report->site_id ?? null,
                 'site' => $drSub->report && $drSub->report->site ? $drSub->report->site : null,
                 'name' => $drSub->name,
+                'no_of_labour' => $drSub->no_of_labour,
                 'amount' => $drSub->amount,
                 'work_details' => $drSub->work_details,
                 'source' => 'Daily Report'

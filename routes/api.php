@@ -52,6 +52,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('material-stock', [\App\Http\Controllers\MaterialInController::class, 'stockBySite']);
     Route::apiResource('material-ins', \App\Http\Controllers\MaterialInController::class);
     Route::apiResource('material-outs', \App\Http\Controllers\MaterialOutController::class);
+    Route::put('subcontractors/{name}/rename', [\App\Http\Controllers\SubcontractorController::class, 'renameAll']);
+    Route::delete('subcontractors/{name}/delete-all', [\App\Http\Controllers\SubcontractorController::class, 'deleteAll']);
+    Route::get('subcontractors/summary', [\App\Http\Controllers\SubcontractorController::class, 'summary']);
+    Route::get('subcontractors/all-history', [\App\Http\Controllers\SubcontractorController::class, 'allHistory']);
+    Route::get('subcontractors/{name}/history', [\App\Http\Controllers\SubcontractorController::class, 'history']);
     Route::apiResource('subcontractors', \App\Http\Controllers\SubcontractorController::class);
     Route::apiResource('site-incharges', \App\Http\Controllers\SiteInchargeController::class);
     Route::get('site-incharges-summary', [\App\Http\Controllers\SiteInchargeController::class, 'summary']);
