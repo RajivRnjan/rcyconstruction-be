@@ -14,7 +14,7 @@ class SubcontractorController extends Controller
     public function index(Request $request)
     {
         $standaloneQuery = Subcontractor::with('site');
-        $dailyQuery = DailyReportSubcontractor::with('report.site');
+        $dailyQuery = DailyReportSubcontractor::whereHas('report')->with('report.site');
 
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -92,7 +92,7 @@ class SubcontractorController extends Controller
     {
         // Get all unique names from both standalone and daily reports
         $standaloneNames = \App\Models\Subcontractor::select('name')->distinct()->pluck('name')->toArray();
-        $dailyNames = \App\Models\DailyReportSubcontractor::select('name')->distinct()->pluck('name')->toArray();
+        $dailyNames = \App\Models\DailyReportSubcontractor::whereHas('report')->select('name')->distinct()->pluck('name')->toArray();
         $names = array_unique(array_merge($standaloneNames, $dailyNames));
         
         $search = $request->get('search');
@@ -168,7 +168,7 @@ class SubcontractorController extends Controller
     public function history(Request $request, $name)
     {
         $standaloneQuery = \App\Models\Subcontractor::with('site')->where('name', $name);
-        $dailyQuery = \App\Models\DailyReportSubcontractor::with('report.site')->where('name', $name);
+        $dailyQuery = \App\Models\DailyReportSubcontractor::whereHas('report')->with('report.site')->where('name', $name);
 
         $standalone = $standaloneQuery->get()->map(function ($sub) {
             $sub->source = 'Standalone';
@@ -197,7 +197,7 @@ class SubcontractorController extends Controller
     {
         $search = $request->get('search');
         $standaloneQuery = \App\Models\Subcontractor::with('site');
-        $dailyQuery = \App\Models\DailyReportSubcontractor::with('report.site');
+        $dailyQuery = \App\Models\DailyReportSubcontractor::whereHas('report')->with('report.site');
 
         if (!empty($search)) {
             $standaloneQuery->where('name', 'LIKE', "%{$search}%");

@@ -43,17 +43,7 @@ class DailyReportController extends Controller
             });
         }
         
-        $query->selectRaw("
-            daily_reports.*, 
-            sites.name as site_name,
-            (
-                COALESCE((SELECT SUM(opening_bal) + SUM(credit) - SUM(exp) FROM site_incharges WHERE name = daily_reports.site_incharge), 0)
-                -
-                COALESCE((SELECT SUM(dre.amount) FROM daily_reports dr JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge), 0)
-                -
-                COALESCE((SELECT SUM(drs.amount) FROM daily_reports dr JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge), 0)
-            ) as outstanding_balance
-        ");
+        $query->select('daily_reports.*', 'sites.name as site_name');
         $query->orderBy('daily_reports.date', 'desc');
         
         if ($request->has('all')) {
@@ -79,16 +69,6 @@ class DailyReportController extends Controller
     public function show($id)
     {
         $report = DailyReport::with(['staff', 'expenses', 'subcontractors'])
-            ->selectRaw("
-                daily_reports.*, 
-                (
-                    COALESCE((SELECT SUM(opening_bal) + SUM(credit) - SUM(exp) FROM site_incharges WHERE name = daily_reports.site_incharge), 0)
-                    -
-                    COALESCE((SELECT SUM(dre.amount) FROM daily_reports dr JOIN daily_report_expenses dre ON dr.id = dre.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge AND dr.id != daily_reports.id), 0)
-                    -
-                    COALESCE((SELECT SUM(drs.amount) FROM daily_reports dr JOIN daily_report_subcontractors drs ON dr.id = drs.daily_report_id WHERE dr.site_incharge = daily_reports.site_incharge AND dr.id != daily_reports.id), 0)
-                ) as outstanding_balance
-            ")
             ->findOrFail($id);
 
         $materialIn = \App\Models\MaterialIn::where('date', $report->date)
@@ -169,15 +149,29 @@ class DailyReportController extends Controller
             ];
 
             if (!empty($validated['report_id'])) {
-                // Editing an existing report — update by ID to avoid duplicate creation
+                // Editing an existing report — ensure date/site does not collide with another report
+                $collision = DailyReport::where('site_id', $validated['site_id'])
+                    ->where('date', $validated['date'])
+                    ->where('id', '!=', $validated['report_id'])
+                    ->first();
+                if ($collision) {
+                    return response()->json([
+                        'message' => 'A daily report for this site on this date already exists. Only 1 report per date is allowed.'
+                    ], 422);
+                }
                 $report = DailyReport::findOrFail($validated['report_id']);
                 $report->update($updateData);
             } else {
-                // New report — use updateOrCreate on site+date to avoid duplicates
-                $report = DailyReport::updateOrCreate(
-                    ['site_id' => $validated['site_id'], 'date' => $validated['date']],
-                    $updateData
-                );
+                // New report — check if report already exists for this site + date
+                $existing = DailyReport::where('site_id', $validated['site_id'])
+                    ->where('date', $validated['date'])
+                    ->first();
+                if ($existing) {
+                    return response()->json([
+                        'message' => 'A daily report for this site on this date already exists. Only 1 report per date is allowed.'
+                    ], 422);
+                }
+                $report = DailyReport::create($updateData);
             }
 
             // Staff attendance — save all (present and absent)
@@ -329,7 +323,11 @@ class DailyReportController extends Controller
                 ->where('site_id', $report->site_id)
                 ->delete();
 
-            // Daily report relations (staff, expenses, subcontractors) will be cascade deleted
+            // Explicitly delete child relations so they never remain as orphans
+            $report->staff()->delete();
+            $report->expenses()->delete();
+            $report->subcontractors()->delete();
+
             $report->delete();
             
             return response()->json(['message' => 'Report deleted successfully']);
