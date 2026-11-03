@@ -10,6 +10,7 @@ use App\Models\StaffSalary;
 use App\Models\Account;
 use App\Models\Supplier;
 use App\Models\Subcontractor;
+use App\Models\DailyReportSubcontractor;
 use App\Models\Material;
 use App\Models\HeadOfficeIncome;
 use App\Models\HeadOfficeExpense;
@@ -22,14 +23,24 @@ class DashboardController extends Controller
         // Aggregate statistics for the dashboard based on developed modules
         
         $totalSites = Site::count();
-        $totalSiteIncharge = SiteIncharge::count();
+
+        // Count unique site incharges from both SiteIncharge and DailyReport records (matches inner page summary)
+        $siteInchargeNames = SiteIncharge::whereNotNull('name')->where('name', '!=', '')->pluck('name')->toArray();
+        $dailyReportInchargeNames = DailyReport::whereNotNull('site_incharge')->where('site_incharge', '!=', '')->pluck('site_incharge')->toArray();
+        $totalSiteIncharge = count(array_unique(array_merge($siteInchargeNames, $dailyReportInchargeNames)));
+
         $totalDailyReports = DailyReport::count();
-        // Since Staff salaries table holds names, let's count unique names as staff count, or just total rows
+        // Since Staff salaries table holds names, count unique names as staff count
         $totalStaff = StaffSalary::distinct('name')->count('name');
         
         $totalAccounts = Account::count();
         $totalSuppliers = Supplier::count();
-        $totalSubcontractors = Subcontractor::count();
+
+        // Count unique subcontractors from both standalone Subcontractor and DailyReportSubcontractor records (matches inner page summary)
+        $standaloneSubNames = Subcontractor::whereNotNull('name')->where('name', '!=', '')->distinct()->pluck('name')->toArray();
+        $dailySubNames = DailyReportSubcontractor::whereHas('report')->whereNotNull('name')->where('name', '!=', '')->distinct()->pluck('name')->toArray();
+        $totalSubcontractors = count(array_unique(array_merge($standaloneSubNames, $dailySubNames)));
+
         $totalMaterials = Material::count();
         
         // Financials (can be extended further)

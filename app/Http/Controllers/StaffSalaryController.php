@@ -12,17 +12,6 @@ class StaffSalaryController extends Controller
      */
     public function index(Request $request)
     {
-        // Auto-sync staff from sites
-        $allSiteStaff = \App\Models\SiteStaff::select('name', 'salary')->distinct('name')->get();
-        foreach ($allSiteStaff as $staff) {
-            if (!empty($staff->name)) {
-                StaffSalary::firstOrCreate(
-                    ['name' => $staff->name],
-                    ['salary' => $staff->salary ?? 0, 'balance' => 0]
-                );
-            }
-        }
-
         $query = StaffSalary::orderBy('created_at', 'desc');
 
         if ($request->has('search') && !empty($request->search)) {
@@ -140,6 +129,10 @@ class StaffSalaryController extends Controller
      */
     public function destroy(StaffSalary $staffSalary)
     {
+        $name = $staffSalary->name;
+        if (!empty($name)) {
+            \App\Models\SiteStaff::where('name', $name)->delete();
+        }
         $staffSalary->delete();
         return response()->json(['message' => 'Record deleted successfully']);
     }
